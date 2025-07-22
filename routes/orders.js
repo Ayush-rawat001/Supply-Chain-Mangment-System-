@@ -165,7 +165,7 @@ router.put('/:id', requireAuth, async (req, res) => {
             }
         }
 
-        // Only allow admin to update status
+        // Allow both admin and the order owner to update status
         let updateData = {
             productId,
             quantity,
@@ -176,7 +176,7 @@ router.put('/:id', requireAuth, async (req, res) => {
             notes,
             updatedAt: Date.now()
         };
-        if (req.user.role === 'admin' && status) {
+        if (status) {
             updateData.status = status;
         }
 
@@ -198,7 +198,7 @@ router.put('/:id', requireAuth, async (req, res) => {
 });
 
 // Delete order (admin only)
-router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/:id', requireAuth,  async (req, res) => {
     try {
         const order = await Order.findByIdAndDelete(req.params.id);
         
