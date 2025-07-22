@@ -36,13 +36,6 @@
                         <input type="password" id="confirmPassword" name="confirmPassword" required>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="role">Role:</label>
-                        <select id="role" name="role" required>
-                            <option value="user">User</option>
-                        </select>
-                    </div>
-                    
                     <button type="submit" class="btn btn-primary">Register</button>
                 </form>
                 
@@ -68,7 +61,7 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
-            // Role is now always 'user', so we don't need to get it from the form
+            // Role is now always 'user', so we don't need to get it from the form or the DOM
             const body = { username, email, password, role: 'user' };
             const messageDiv = document.getElementById('message');
             

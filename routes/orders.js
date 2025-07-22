@@ -77,6 +77,21 @@ router.post('/', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Product not found' });
         }
 
+        // Find inventory for this product and user
+        const inventory = await require('../models/Inventory').findOne({ productId, userId: req.user._id });
+        if (!inventory) {
+            return res.status(400).json({ error: 'Inventory not found for this product' });
+        }
+
+        // Check if enough stock is available
+        if (inventory.availableStock < quantity) {
+            return res.status(400).json({ error: 'Not enough stock available' });
+        }
+
+        // Reduce inventory availableStock
+        inventory.availableStock -= quantity;
+        await inventory.save();
+
         // Calculate total amount
         const totalAmount = product.price * quantity;
 
@@ -89,7 +104,7 @@ router.post('/', requireAuth, async (req, res) => {
             shippingAddress,
             totalAmount,
             notes,
-            status: 'pending',
+            status: 'pending', // Always set to pending
             userId: req.user._id // Associate order with user
         });
 
@@ -150,10 +165,10 @@ router.put('/:id', requireAuth, async (req, res) => {
             }
         }
 
-        const updateData = {
+        // Only allow admin to update status
+        let updateData = {
             productId,
             quantity,
-            status,
             customerName,
             customerEmail,
             customerPhone,
@@ -161,6 +176,9 @@ router.put('/:id', requireAuth, async (req, res) => {
             notes,
             updatedAt: Date.now()
         };
+        if (req.user.role === 'admin' && status) {
+            updateData.status = status;
+        }
 
         if (totalAmount !== undefined) {
             updateData.totalAmount = totalAmount;
