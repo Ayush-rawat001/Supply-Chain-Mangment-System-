@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders - Supply Chain Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Supply Chain Management System</h1>
+        </header>
+        
+        <div class="dashboard">
+            <aside class="sidebar">
+                <h3>Navigation</h3>
+                <ul class="nav-menu">
+                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/suppliers">Suppliers</a></li>
+                    <li><a href="/products">Products</a></li>
+                    <li><a href="/orders" class="active">Orders</a></li>
+                    <li><a href="/inventory">Inventory</a></li>
+                </ul>
+                
+                <div style="margin-top: 2rem; text-align: center;">
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                </div>
+            </aside>
+            
+            <main class="dashboard-content">
+                <div class="dashboard-header">
+                    <h2>Orders Management</h2>
+                    <button id="addOrderBtn" class="btn btn-primary">Add New Order</button>
+                </div>
+                
+                <div class="table-container">
+                    <table id="ordersTable">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Customer</th>
+                                <th>Product</th>
+                                <th>Quantity</th>
+                                <th>Total Amount</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersBody">
+                            <!-- Orders will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+        
+        <footer class="footer">
+            <p>&copy; 2024 Supply Chain Management System</p>
+        </footer>
+    </div>
+
+    <!-- Add/Edit Order Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Add New Order</h2>
+            <form id="orderForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productId">Product:</label>
+                        <select id="productId" name="productId" required>
+                            <option value="">Select Product</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="quantity">Quantity:</label>
+                        <input type="number" id="quantity" name="quantity" min="1" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="customerName">Customer Name:</label>
+                        <input type="text" id="customerName" name="customerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="customerEmail">Customer Email:</label>
+                        <input type="email" id="customerEmail" name="customerEmail">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="customerPhone">Customer Phone:</label>
+                        <input type="tel" id="customerPhone" name="customerPhone">
+                    </div>
+                    <div class="form-group">
+                        <label for="status">Status:</label>
+                        <select id="status" name="status" required>
+                            <option value="pending">Pending</option>
+                            <option value="processing">Processing</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="shippingAddress">Shipping Address:</label>
+                    <textarea id="shippingAddress" name="shippingAddress" rows="3" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes:</label>
+                    <textarea id="notes" name="notes" rows="2"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentOrderId = null;
+        const modal = document.getElementById('orderModal');
+        const closeBtn = document.querySelector('.close');
+
+        // Check authentication
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/auth/me');
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return;
+                }
+                loadProducts();
+                loadOrders();
+            } catch (error) {
+                window.location.href = '/login';
+            }
+        });
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        });
+
+        // Modal controls
+        document.getElementById('addOrderBtn').addEventListener('click', () => {
+            currentOrderId = null;
+            document.getElementById('modalTitle').textContent = 'Add New Order';
+            document.getElementById('orderForm').reset();
+            document.getElementById('status').value = 'pending';
+            modal.style.display = 'block';
+        });
+
+        closeBtn.addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        function closeModal() {
+            modal.style.display = 'none';
+            currentOrderId = null;
+        }
+
+        // Load products for dropdown
+        async function loadProducts() {
+            try {
+                const response = await fetch('/api/products');
+                if (response.ok) {
+                    const products = await response.json();
+                    const select = document.getElementById('productId');
+                    select.innerHTML = '<option value="">Select Product</option>';
+                    products.forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product._id;
+                        option.textContent = `${product.name} ($${product.price})`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        // Load orders
+        async function loadOrders() {
+            try {
+                const response = await fetch('/api/orders');
+                if (response.ok) {
+                    const orders = await response.json();
+                    displayOrders(orders);
+                }
+            } catch (error) {
+                console.error('Error loading orders:', error);
+            }
+        }
+
+        function displayOrders(orders) {
+            const tbody = document.getElementById('ordersBody');
+            tbody.innerHTML = '';
+
+            orders.forEach(order => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${order._id.slice(-6)}</td>
+                    <td>${order.customerName}</td>
+                    <td>${order.productId ? order.productId.name : 'N/A'}</td>
+                    <td>${order.quantity}</td>
+                    <td>$${order.totalAmount.toFixed(2)}</td>
+                    <td><span class="status-${order.status}">${order.status}</span></td>
+                    <td>${new Date(order.date).toLocaleDateString()}</td>
+                    <td>
+                        <button onclick="editOrder('${order._id}')" class="btn btn-secondary" style="padding: 5px 10px; margin-right: 5px;">Edit</button>
+                        <button onclick="deleteOrder('${order._id}')" class="btn btn-danger" style="padding: 5px 10px;">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Edit order
+        async function editOrder(id) {
+            try {
+                const response = await fetch(`/api/orders/${id}`);
+                if (response.ok) {
+                    const order = await response.json();
+                    currentOrderId = id;
+                    document.getElementById('modalTitle').textContent = 'Edit Order';
+                    document.getElementById('productId').value = order.productId._id;
+                    document.getElementById('quantity').value = order.quantity;
+                    document.getElementById('customerName').value = order.customerName;
+                    document.getElementById('customerEmail').value = order.customerEmail || '';
+                    document.getElementById('customerPhone').value = order.customerPhone || '';
+                    document.getElementById('status').value = order.status;
+                    document.getElementById('shippingAddress').value = order.shippingAddress;
+                    document.getElementById('notes').value = order.notes || '';
+                    modal.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading order:', error);
+            }
+        }
+
+        // Delete order
+        async function deleteOrder(id) {
+            if (confirm('Are you sure you want to delete this order?')) {
+                try {
+                    const response = await fetch(`/api/orders/${id}`, {
+                        method: 'DELETE'
+                    });
+                    if (response.ok) {
+                        loadOrders();
+                    } else {
+                        alert('Error deleting order');
+                    }
+                } catch (error) {
+                    console.error('Error deleting order:', error);
+                }
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('orderForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                productId: document.getElementById('productId').value,
+                quantity: parseInt(document.getElementById('quantity').value),
+                customerName: document.getElementById('customerName').value,
+                customerEmail: document.getElementById('customerEmail').value,
+                customerPhone: document.getElementById('customerPhone').value,
+                status: document.getElementById('status').value,
+                shippingAddress: document.getElementById('shippingAddress').value,
+                notes: document.getElementById('notes').value
+            };
+
+            try {
+                const url = currentOrderId ? `/api/orders/${currentOrderId}` : '/api/orders';
+                const method = currentOrderId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    closeModal();
+                    loadOrders();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Error saving order');
+                }
+            } catch (error) {
+                console.error('Error saving order:', error);
+                alert('Error saving order');
+            }
+        });
+    </script>
+
+    <style>
+        .status-pending { color: #ffc107; font-weight: bold; }
+        .status-processing { color: #17a2b8; font-weight: bold; }
+        .status-shipped { color: #007bff; font-weight: bold; }
+        .status-delivered { color: #28a745; font-weight: bold; }
+        .status-cancelled { color: #dc3545; font-weight: bold; }
+    </style>
+</body>
+</html> 

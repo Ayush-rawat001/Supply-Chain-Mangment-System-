@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - Supply Chain Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Supply Chain Management System</h1>
+        </header>
+        
+        <div class="dashboard">
+            <aside class="sidebar">
+                <h3>Navigation</h3>
+                <ul class="nav-menu">
+                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/suppliers">Suppliers</a></li>
+                    <li><a href="/products" class="active">Products</a></li>
+                    <li><a href="/orders">Orders</a></li>
+                    <li><a href="/inventory">Inventory</a></li>
+                </ul>
+                
+                <div style="margin-top: 2rem; text-align: center;">
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                </div>
+            </aside>
+            
+            <main class="dashboard-content">
+                <div class="dashboard-header">
+                    <h2>Products Management</h2>
+                    <button id="addProductBtn" class="btn btn-primary">Add New Product</button>
+                </div>
+                
+                <div class="table-container">
+                    <table id="productsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>SKU</th>
+                                <th>Supplier</th>
+                                <th>Price</th>
+                                <th>Quantity</th>
+                                <th>Category</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsBody">
+                            <!-- Products will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+        
+        <footer class="footer">
+            <p>&copy; 2024 Supply Chain Management System</p>
+        </footer>
+    </div>
+
+    <!-- Add/Edit Product Modal -->
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Add New Product</h2>
+            <form id="productForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="name">Product Name:</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="sku">SKU:</label>
+                        <input type="text" id="sku" name="sku" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="supplierId">Supplier:</label>
+                        <select id="supplierId" name="supplierId" required>
+                            <option value="">Select Supplier</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="price">Price:</label>
+                        <input type="number" id="price" name="price" step="0.01" min="0" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="quantity">Quantity:</label>
+                        <input type="number" id="quantity" name="quantity" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category:</label>
+                        <input type="text" id="category" name="category">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="description">Description:</label>
+                    <textarea id="description" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentProductId = null;
+        const modal = document.getElementById('productModal');
+        const closeBtn = document.querySelector('.close');
+
+        // Check authentication
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/auth/me');
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return;
+                }
+                loadSuppliers();
+                loadProducts();
+            } catch (error) {
+                window.location.href = '/login';
+            }
+        });
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        });
+
+        // Modal controls
+        document.getElementById('addProductBtn').addEventListener('click', () => {
+            currentProductId = null;
+            document.getElementById('modalTitle').textContent = 'Add New Product';
+            document.getElementById('productForm').reset();
+            modal.style.display = 'block';
+        });
+
+        closeBtn.addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        function closeModal() {
+            modal.style.display = 'none';
+            currentProductId = null;
+        }
+
+        // Load suppliers for dropdown
+        async function loadSuppliers() {
+            try {
+                const response = await fetch('/api/suppliers');
+                if (response.ok) {
+                    const suppliers = await response.json();
+                    const select = document.getElementById('supplierId');
+                    select.innerHTML = '<option value="">Select Supplier</option>';
+                    suppliers.forEach(supplier => {
+                        const option = document.createElement('option');
+                        option.value = supplier._id;
+                        option.textContent = supplier.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading suppliers:', error);
+            }
+        }
+
+        // Load products
+        async function loadProducts() {
+            try {
+                const response = await fetch('/api/products');
+                if (response.ok) {
+                    const products = await response.json();
+                    displayProducts(products);
+                }
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        function displayProducts(products) {
+            const tbody = document.getElementById('productsBody');
+            tbody.innerHTML = '';
+
+            products.forEach(product => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${product.name}</td>
+                    <td>${product.SKU}</td>
+                    <td>${product.supplierId ? product.supplierId.name : 'N/A'}</td>
+                    <td>$${product.price.toFixed(2)}</td>
+                    <td>${product.quantity}</td>
+                    <td>${product.category || 'N/A'}</td>
+                    <td>
+                        <button onclick="editProduct('${product._id}')" class="btn btn-secondary" style="padding: 5px 10px; margin-right: 5px;">Edit</button>
+                        <button onclick="deleteProduct('${product._id}')" class="btn btn-danger" style="padding: 5px 10px;">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Edit product
+        async function editProduct(id) {
+            try {
+                const response = await fetch(`/api/products/${id}`);
+                if (response.ok) {
+                    const product = await response.json();
+                    currentProductId = id;
+                    document.getElementById('modalTitle').textContent = 'Edit Product';
+                    document.getElementById('name').value = product.name;
+                    document.getElementById('sku').value = product.SKU;
+                    document.getElementById('supplierId').value = product.supplierId._id;
+                    document.getElementById('price').value = product.price;
+                    document.getElementById('quantity').value = product.quantity;
+                    document.getElementById('category').value = product.category || '';
+                    document.getElementById('description').value = product.description || '';
+                    modal.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading product:', error);
+            }
+        }
+
+        // Delete product
+        async function deleteProduct(id) {
+            if (confirm('Are you sure you want to delete this product?')) {
+                try {
+                    const response = await fetch(`/api/products/${id}`, {
+                        method: 'DELETE'
+                    });
+                    if (response.ok) {
+                        loadProducts();
+                    } else {
+                        alert('Error deleting product');
+                    }
+                } catch (error) {
+                    console.error('Error deleting product:', error);
+                }
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('productForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('name').value,
+                SKU: document.getElementById('sku').value,
+                supplierId: document.getElementById('supplierId').value,
+                price: parseFloat(document.getElementById('price').value),
+                quantity: parseInt(document.getElementById('quantity').value) || 0,
+                category: document.getElementById('category').value,
+                description: document.getElementById('description').value
+            };
+
+            try {
+                const url = currentProductId ? `/api/products/${currentProductId}` : '/api/products';
+                const method = currentProductId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    closeModal();
+                    loadProducts();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Error saving product');
+                }
+            } catch (error) {
+                console.error('Error saving product:', error);
+                alert('Error saving product');
+            }
+        });
+    </script>
+</body>
+</html> 

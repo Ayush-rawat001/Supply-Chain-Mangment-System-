@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Supply Chain Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Supply Chain Management System</h1>
+        </header>
+        
+        <div class="dashboard">
+            <aside class="sidebar">
+                <h3>Navigation</h3>
+                <ul class="nav-menu">
+                    <li><a href="/dashboard" class="active">Dashboard</a></li>
+                    <li><a href="/suppliers">Suppliers</a></li>
+                    <li><a href="/products">Products</a></li>
+                    <li><a href="/orders">Orders</a></li>
+                    <li><a href="/inventory">Inventory</a></li>
+                </ul>
+                
+                <div style="margin-top: 2rem; text-align: center;">
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                </div>
+            </aside>
+            
+            <main class="dashboard-content">
+                <div class="dashboard-header">
+                    <h2>Dashboard Overview</h2>
+                    <span id="userInfo">Welcome!</span>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3 id="suppliersCount">0</h3>
+                        <p>Total Suppliers</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 id="productsCount">0</h3>
+                        <p>Total Products</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 id="ordersCount">0</h3>
+                        <p>Total Orders</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 id="inventoryCount">0</h3>
+                        <p>Inventory Items</p>
+                    </div>
+                </div>
+                
+                <div class="recent-section">
+                    <h3>Recent Orders</h3>
+                    <div class="table-container">
+                        <table id="recentOrdersTable">
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Customer</th>
+                                    <th>Product</th>
+                                    <th>Status</th>
+                                    <th>Amount</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentOrdersBody">
+                                <!-- Recent orders will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="recent-section" style="margin-top: 2rem;">
+                    <h3>Low Stock Items</h3>
+                    <div class="table-container">
+                        <table id="lowStockTable">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Available Stock</th>
+                                    <th>Minimum Stock</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lowStockBody">
+                                <!-- Low stock items will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+        
+        <footer class="footer">
+            <p>&copy; 2024 Supply Chain Management System</p>
+        </footer>
+    </div>
+
+    <script>
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/auth/me');
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                const userData = await response.json();
+                
+                // Redirect to appropriate dashboard based on role
+                if (userData.role === 'admin') {
+                    window.location.href = '/admin-dashboard';
+                    return;
+                } else {
+                    window.location.href = '/user-dashboard';
+                    return;
+                }
+                
+                // Load dashboard data
+                loadDashboardData();
+            } catch (error) {
+                console.error('Error checking authentication:', error);
+                window.location.href = '/login';
+            }
+        });
+
+        // Logout functionality
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        });
+
+        // Load dashboard statistics and data
+        async function loadDashboardData() {
+            try {
+                // Load counts
+                const [suppliersRes, productsRes, ordersRes, inventoryRes] = await Promise.all([
+                    fetch('/api/suppliers'),
+                    fetch('/api/products'),
+                    fetch('/api/orders'),
+                    fetch('/api/inventory')
+                ]);
+
+                if (suppliersRes.ok) {
+                    const suppliers = await suppliersRes.json();
+                    document.getElementById('suppliersCount').textContent = suppliers.length;
+                }
+
+                if (productsRes.ok) {
+                    const products = await productsRes.json();
+                    document.getElementById('productsCount').textContent = products.length;
+                }
+
+                if (ordersRes.ok) {
+                    const orders = await ordersRes.json();
+                    document.getElementById('ordersCount').textContent = orders.length;
+                    loadRecentOrders(orders.slice(0, 5)); // Show last 5 orders
+                }
+
+                if (inventoryRes.ok) {
+                    const inventory = await inventoryRes.json();
+                    document.getElementById('inventoryCount').textContent = inventory.length;
+                }
+
+                // Load low stock items
+                const lowStockRes = await fetch('/api/inventory/low-stock/items');
+                if (lowStockRes.ok) {
+                    const lowStockItems = await lowStockRes.json();
+                    loadLowStockItems(lowStockItems);
+                }
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        function loadRecentOrders(orders) {
+            const tbody = document.getElementById('recentOrdersBody');
+            tbody.innerHTML = '';
+
+            orders.forEach(order => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${order._id.slice(-6)}</td>
+                    <td>${order.customerName}</td>
+                    <td>${order.productId ? order.productId.name : 'N/A'}</td>
+                    <td><span class="status-${order.status}">${order.status}</span></td>
+                    <td>$${order.totalAmount.toFixed(2)}</td>
+                    <td>${new Date(order.date).toLocaleDateString()}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function loadLowStockItems(items) {
+            const tbody = document.getElementById('lowStockBody');
+            tbody.innerHTML = '';
+
+            items.forEach(item => {
+                const row = document.createElement('tr');
+                const status = item.availableStock <= 0 ? 'Out of Stock' : 'Low Stock';
+                const statusClass = item.availableStock <= 0 ? 'status-out' : 'status-low';
+                
+                row.innerHTML = `
+                    <td>${item.productId ? item.productId.name : 'N/A'}</td>
+                    <td>${item.availableStock}</td>
+                    <td>${item.minimumStock}</td>
+                    <td><span class="${statusClass}">${status}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    </script>
+
+    <style>
+        .status-pending { color: #ffc107; font-weight: bold; }
+        .status-processing { color: #17a2b8; font-weight: bold; }
+        .status-shipped { color: #007bff; font-weight: bold; }
+        .status-delivered { color: #28a745; font-weight: bold; }
+        .status-cancelled { color: #dc3545; font-weight: bold; }
+        .status-low { color: #ffc107; font-weight: bold; }
+        .status-out { color: #dc3545; font-weight: bold; }
+        
+        .recent-section h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+    </style>
+</body>
+</html> 

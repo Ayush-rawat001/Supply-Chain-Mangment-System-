@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard - Supply Chain Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Supply Chain Management System - User Dashboard</h1>
+        </header>
+        
+        <div class="dashboard">
+            <aside class="sidebar">
+                <h3>User Navigation</h3>
+                <ul class="nav-menu">
+                    <li><a href="/user-dashboard" class="active">Dashboard</a></li>
+                    <li><a href="/products">View Products</a></li>
+                    <li><a href="/orders">My Orders</a></li>
+                    <li><a href="/inventory">Inventory Summary</a></li>
+                </ul>
+                
+                <div style="margin-top: 2rem; text-align: center;">
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                </div>
+            </aside>
+            
+            <main class="dashboard-content">
+                <div class="dashboard-header">
+                    <h2>User Dashboard Overview</h2>
+                    <span id="userInfo">Welcome!</span>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3 id="productsCount">0</h3>
+                        <p>Available Products</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 id="myOrdersCount">0</h3>
+                        <p>My Orders</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 id="inStockCount">0</h3>
+                        <p>In Stock Items</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 id="lowStockCount">0</h3>
+                        <p>Low Stock Items</p>
+                    </div>
+                </div>
+                
+                <div class="recent-section">
+                    <h3>My Recent Orders</h3>
+                    <div class="table-container">
+                        <table id="myOrdersTable">
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Product</th>
+                                    <th>Quantity</th>
+                                    <th>Status</th>
+                                    <th>Amount</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="myOrdersBody">
+                                <!-- My orders will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="recent-section" style="margin-top: 2rem;">
+                    <h3>Available Products</h3>
+                    <div class="table-container">
+                        <table id="productsTable">
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>SKU</th>
+                                    <th>Price</th>
+                                    <th>Available Stock</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsBody">
+                                <!-- Products will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+        
+        <footer class="footer">
+            <p>&copy; 2024 Supply Chain Management System</p>
+        </footer>
+    </div>
+
+    <script>
+        // Check authentication and role on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/auth/me');
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                const userData = await response.json();
+                
+                // Check if user is admin (redirect to admin dashboard)
+                if (userData.role === 'admin') {
+                    window.location.href = '/admin-dashboard';
+                    return;
+                }
+                
+                document.getElementById('userInfo').textContent = `Welcome, ${userData.username}!`;
+                
+                // Load dashboard data
+                loadDashboardData();
+            } catch (error) {
+                console.error('Error checking authentication:', error);
+                window.location.href = '/login';
+            }
+        });
+
+        // Logout functionality
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        });
+
+        // Load dashboard statistics and data
+        async function loadDashboardData() {
+            try {
+                // Load products
+                const productsRes = await fetch('/api/products');
+                if (productsRes.ok) {
+                    const products = await productsRes.json();
+                    document.getElementById('productsCount').textContent = products.length;
+                    loadProducts(products.slice(0, 5)); // Show first 5 products
+                }
+
+                // Load user's orders
+                const ordersRes = await fetch('/api/orders');
+                if (ordersRes.ok) {
+                    const orders = await ordersRes.json();
+                    document.getElementById('myOrdersCount').textContent = orders.length;
+                    loadMyOrders(orders.slice(0, 5)); // Show last 5 orders
+                }
+
+                // Load inventory summary
+                const inventoryRes = await fetch('/api/inventory');
+                if (inventoryRes.ok) {
+                    const inventory = await inventoryRes.json();
+                    const inStockItems = inventory.filter(item => item.availableStock > 0);
+                    const lowStockItems = inventory.filter(item => item.availableStock <= item.minimumStock && item.availableStock > 0);
+                    
+                    document.getElementById('inStockCount').textContent = inStockItems.length;
+                    document.getElementById('lowStockCount').textContent = lowStockItems.length;
+                }
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        function loadMyOrders(orders) {
+            const tbody = document.getElementById('myOrdersBody');
+            tbody.innerHTML = '';
+
+            orders.forEach(order => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${order._id.slice(-6)}</td>
+                    <td>${order.productId ? order.productId.name : 'N/A'}</td>
+                    <td>${order.quantity}</td>
+                    <td><span class="status-${order.status}">${order.status}</span></td>
+                    <td>$${order.totalAmount.toFixed(2)}</td>
+                    <td>${new Date(order.createdAt).toLocaleDateString()}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function loadProducts(products) {
+            const tbody = document.getElementById('productsBody');
+            tbody.innerHTML = '';
+
+            products.forEach(product => {
+                const row = document.createElement('tr');
+                const stockStatus = product.quantity > 0 ? 'In Stock' : 'Out of Stock';
+                const statusClass = product.quantity > 0 ? 'status-instock' : 'status-out';
+                
+                row.innerHTML = `
+                    <td>${product.name}</td>
+                    <td>${product.SKU}</td>
+                    <td>$${product.price.toFixed(2)}</td>
+                    <td>${product.quantity}</td>
+                    <td><span class="${statusClass}">${stockStatus}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    </script>
+
+    <style>
+        .status-pending { color: #ffc107; font-weight: bold; }
+        .status-processing { color: #17a2b8; font-weight: bold; }
+        .status-shipped { color: #007bff; font-weight: bold; }
+        .status-delivered { color: #28a745; font-weight: bold; }
+        .status-cancelled { color: #dc3545; font-weight: bold; }
+        .status-instock { color: #28a745; font-weight: bold; }
+        .status-out { color: #dc3545; font-weight: bold; }
+        
+        .recent-section h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+    </style>
+</body>
+</html> 

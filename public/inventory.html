@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - Supply Chain Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Supply Chain Management System</h1>
+        </header>
+        
+        <div class="dashboard">
+            <aside class="sidebar">
+                <h3>Navigation</h3>
+                <ul class="nav-menu">
+                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/suppliers">Suppliers</a></li>
+                    <li><a href="/products">Products</a></li>
+                    <li><a href="/orders">Orders</a></li>
+                    <li><a href="/inventory" class="active">Inventory</a></li>
+                </ul>
+                
+                <div style="margin-top: 2rem; text-align: center;">
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                </div>
+            </aside>
+            
+            <main class="dashboard-content">
+                <div class="dashboard-header">
+                    <h2>Inventory Management</h2>
+                    <button id="addInventoryBtn" class="btn btn-primary">Add New Inventory Item</button>
+                </div>
+                
+                <div class="table-container">
+                    <table id="inventoryTable">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Available Stock</th>
+                                <th>Reserved Stock</th>
+                                <th>Minimum Stock</th>
+                                <th>Maximum Stock</th>
+                                <th>Location</th>
+                                <th>Last Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryBody">
+                            <!-- Inventory items will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+        
+        <footer class="footer">
+            <p>&copy; 2024 Supply Chain Management System</p>
+        </footer>
+    </div>
+
+    <!-- Add/Edit Inventory Modal -->
+    <div id="inventoryModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Add New Inventory Item</h2>
+            <form id="inventoryForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productId">Product:</label>
+                        <select id="productId" name="productId" required>
+                            <option value="">Select Product</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="availableStock">Available Stock:</label>
+                        <input type="number" id="availableStock" name="availableStock" min="0" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="reservedStock">Reserved Stock:</label>
+                        <input type="number" id="reservedStock" name="reservedStock" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="minimumStock">Minimum Stock:</label>
+                        <input type="number" id="minimumStock" name="minimumStock" min="0" value="0">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="maximumStock">Maximum Stock:</label>
+                        <input type="number" id="maximumStock" name="maximumStock" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="location">Location:</label>
+                        <input type="text" id="location" name="location">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes:</label>
+                    <textarea id="notes" name="notes" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentInventoryId = null;
+        const modal = document.getElementById('inventoryModal');
+        const closeBtn = document.querySelector('.close');
+
+        // Check authentication
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/auth/me');
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return;
+                }
+                loadProducts();
+                loadInventory();
+            } catch (error) {
+                window.location.href = '/login';
+            }
+        });
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        });
+
+        // Modal controls
+        document.getElementById('addInventoryBtn').addEventListener('click', () => {
+            currentInventoryId = null;
+            document.getElementById('modalTitle').textContent = 'Add New Inventory Item';
+            document.getElementById('inventoryForm').reset();
+            modal.style.display = 'block';
+        });
+
+        closeBtn.addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        function closeModal() {
+            modal.style.display = 'none';
+            currentInventoryId = null;
+        }
+
+        // Load products for dropdown
+        async function loadProducts() {
+            try {
+                const response = await fetch('/api/products');
+                if (response.ok) {
+                    const products = await response.json();
+                    const select = document.getElementById('productId');
+                    select.innerHTML = '<option value="">Select Product</option>';
+                    products.forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product._id;
+                        option.textContent = product.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        // Load inventory
+        async function loadInventory() {
+            try {
+                const response = await fetch('/api/inventory');
+                if (response.ok) {
+                    const inventory = await response.json();
+                    displayInventory(inventory);
+                }
+            } catch (error) {
+                console.error('Error loading inventory:', error);
+            }
+        }
+
+        function displayInventory(inventory) {
+            const tbody = document.getElementById('inventoryBody');
+            tbody.innerHTML = '';
+
+            inventory.forEach(item => {
+                const row = document.createElement('tr');
+                const stockStatus = getStockStatus(item.availableStock, item.minimumStock);
+                const statusClass = stockStatus === 'Low Stock' ? 'status-low' : 
+                                  stockStatus === 'Out of Stock' ? 'status-out' : 'status-ok';
+                
+                row.innerHTML = `
+                    <td>${item.productId ? item.productId.name : 'N/A'}</td>
+                    <td class="${statusClass}">${item.availableStock}</td>
+                    <td>${item.reservedStock}</td>
+                    <td>${item.minimumStock}</td>
+                    <td>${item.maximumStock || 'N/A'}</td>
+                    <td>${item.location || 'N/A'}</td>
+                    <td>${new Date(item.lastUpdated).toLocaleDateString()}</td>
+                    <td>
+                        <button onclick="editInventory('${item._id}')" class="btn btn-secondary" style="padding: 5px 10px; margin-right: 5px;">Edit</button>
+                        <button onclick="deleteInventory('${item._id}')" class="btn btn-danger" style="padding: 5px 10px;">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function getStockStatus(availableStock, minimumStock) {
+            if (availableStock <= 0) return 'Out of Stock';
+            if (availableStock <= minimumStock) return 'Low Stock';
+            return 'OK';
+        }
+
+        // Edit inventory
+        async function editInventory(id) {
+            try {
+                const response = await fetch(`/api/inventory/${id}`);
+                if (response.ok) {
+                    const inventory = await response.json();
+                    currentInventoryId = id;
+                    document.getElementById('modalTitle').textContent = 'Edit Inventory Item';
+                    document.getElementById('productId').value = inventory.productId._id;
+                    document.getElementById('availableStock').value = inventory.availableStock;
+                    document.getElementById('reservedStock').value = inventory.reservedStock;
+                    document.getElementById('minimumStock').value = inventory.minimumStock;
+                    document.getElementById('maximumStock').value = inventory.maximumStock || '';
+                    document.getElementById('location').value = inventory.location || '';
+                    document.getElementById('notes').value = inventory.notes || '';
+                    modal.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading inventory:', error);
+            }
+        }
+
+        // Delete inventory
+        async function deleteInventory(id) {
+            if (confirm('Are you sure you want to delete this inventory item?')) {
+                try {
+                    const response = await fetch(`/api/inventory/${id}`, {
+                        method: 'DELETE'
+                    });
+                    if (response.ok) {
+                        loadInventory();
+                    } else {
+                        alert('Error deleting inventory item');
+                    }
+                } catch (error) {
+                    console.error('Error deleting inventory:', error);
+                }
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('inventoryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                productId: document.getElementById('productId').value,
+                availableStock: parseInt(document.getElementById('availableStock').value),
+                reservedStock: parseInt(document.getElementById('reservedStock').value) || 0,
+                minimumStock: parseInt(document.getElementById('minimumStock').value) || 0,
+                maximumStock: document.getElementById('maximumStock').value ? parseInt(document.getElementById('maximumStock').value) : undefined,
+                location: document.getElementById('location').value,
+                notes: document.getElementById('notes').value
+            };
+
+            try {
+                const url = currentInventoryId ? `/api/inventory/${currentInventoryId}` : '/api/inventory';
+                const method = currentInventoryId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    closeModal();
+                    loadInventory();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Error saving inventory item');
+                }
+            } catch (error) {
+                console.error('Error saving inventory:', error);
+                alert('Error saving inventory item');
+            }
+        });
+    </script>
+
+    <style>
+        .status-ok { color: #28a745; font-weight: bold; }
+        .status-low { color: #ffc107; font-weight: bold; }
+        .status-out { color: #dc3545; font-weight: bold; }
+    </style>
+</body>
+</html> 
